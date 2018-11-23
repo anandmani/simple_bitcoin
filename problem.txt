@@ -1,0 +1,29 @@
+The goal of this (and the next project) is to implement Bitcoin and (part 2)  to build a large simulator to determine its behavior.
+
+As a reference, you can use the original paper: bitcoin.pdf  , the extra material at bitcoint.org. Any other reference is fine as well. (Links to an external site.)Links to an external site.
+
+In part I, you have to accomplish the following goals:
+
+1. Implement enough of the bitcoin protocol to be able to mine bitcoins, implement wallets (enough to get the other goals), transact bitcoins. For mining, make sure you set the threshold low so you can mine very fast (milliseconds to seconds)
+
+2. Write test cases verifying the correctness for each task. Specifically, you need to write unit test (for focused functionality such as correct computation of the hashes) and functional tests (simple scenarios in which a transaction happens between two participants).
+
+When you submit the project, make sure you include a README that explains what functionality is implemented, who to run the tests, etc.
+
+ 
+
+In part II of the project, you need to do:
+
+1. Finish the distributed protocol 
+
+2. Implement a simulation with at least 100 participants in which coins get mined and transacted.
+
+3. Implement a web interface using the Phoenix that allows access to the ongoing simulation using a web browser (need to use the matching JavaScript library that allows Phoenix messages to be received in the browser). For charting, you can use Charts.js or any other charting library. As part of the simulation, capture various metrics and send them via Phoenix to the browser. (Links to an external site.)Links to an external site.
+
+4. Implement various mining/transacting scenarios and describe them and their results in your README. 
+
+Bonus 
+
+1. Implements more bitcoin "features" for part I (+20%)
+
+2. Implement an interface for "transacting" bitcoins using Phoenix and make it part of the simulated network (+20%). The public key crypto signing must happen in the browser (you can use package elliptic (Links to an external site.)Links to an external site. for that. 
