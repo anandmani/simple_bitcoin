@@ -1,18 +1,18 @@
 defmodule Block do
   @target 3
 
-  def create(data \\ "", prev_hash \\ 0, block_height \\ 0, miner \\ "") do    
-    timestamp = DateTime.utc_now |> DateTime.to_unix
+  def create(data, prev_hash, block_height, txns) do
+    timestamp = DateTime.utc_now() |> DateTime.to_unix()
 
     block = %{
       :merkle_root => data,
       :timestamp => timestamp,
       :prev_hash => prev_hash,
-      :hash => nil, 
+      :hash => nil,
       :nonce => 0,
       :target => @target,
       :block_height => block_height,
-      :miner => miner
+      :txns => txns
     }
 
     if(data == "Genesis") do
@@ -26,6 +26,7 @@ defmodule Block do
 
   def mine(target, nonce, block) do
     hash = hash(block.merkle_root, block.prev_hash, block.timestamp, Integer.to_string(nonce, 16))
+
     if(zeros(target) == hash_slice(hash, target)) do
       {hash, nonce}
     else
@@ -36,15 +37,15 @@ defmodule Block do
 
   def hash(data, prev_hash, timestamp, nonce) do
     appended_block = "#{data}#{prev_hash}#{timestamp}#{nonce}"
-    :crypto.hash(:sha256, appended_block) |> Base.encode16 |> String.downcase
+    :crypto.hash(:sha256, appended_block) |> Base.encode16() |> String.downcase()
   end
 
-  def zeros(target) do 
-    zeros = for _<- 1..target, do: "0"
+  def zeros(target) do
+    zeros = for _ <- 1..target, do: "0"
     zeros |> Enum.join("")
   end
 
   def hash_slice(hash, target) do
-    String.slice(hash, 0..target-1)
+    String.slice(hash, 0..(target - 1))
   end
 end

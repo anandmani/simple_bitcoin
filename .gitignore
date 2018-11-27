@@ -23,3 +23,5 @@ erl_crash.dump
 simple_bitcoin-*.tar
 
 .DS_Store
+
+.elixir_ls/

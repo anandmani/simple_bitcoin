@@ -12,72 +12,61 @@ defmodule Miner do
     GenServer.cast(server, {:transaction_poll, nil})
   end
 
-  def blockchain_broadcast(server, blockchain) do
-    GenServer.cast(server, {:blockchain_broadcast, blockchain})
-  end
-
   def init(username) do
-    {:ok, 
-      %{
-        :blockchain => nil,
-        :name => username
-      }
-    }
+    {:ok,
+     %{
+       :name => username
+     }}
   end
 
-  def handle_cast({method, methodArgs}, state) do
+  def handle_cast({method, _methodArgs}, state) do
     case method do
       :transaction_poll ->
-        get_trans_list()
+        get_transactions()
         {:noreply, state}
-      
-      :blockchain_broadcast ->
-        blockchain = methodArgs
-        {:noreply, Map.merge(state, %{:blockchain => blockchain})}
     end
   end
 
-  defp get_trans_list() do
-    Process.send_after(self(), :get_trans_list, 5 * 1000)
+  defp get_transactions() do
+    Process.send_after(self(), :get_transactions, 5 * 1000)
   end
 
-  def handle_info(:get_trans_list, state) do
-    trans_list = Bitcoind.get_trans_list(:bitcoind)
-    if(!Enum.empty?(trans_list)) do
-      create_block(trans_list, state)
+  def handle_info(:get_transactions, state) do
+    transactions = Bitcoind.get_transactions(:bitcoind)
+
+    if(!Enum.empty?(transactions)) do
+      create_block(transactions, state)
     end
-    IO.inspect(trans_list)
-    IO.puts("bitcoind")
-    IO.inspect(Bitcoind.get_blockchain(:bitcoind))
-    IO.puts("state")
-    IO.inspect(state.blockchain)
-    get_trans_list()
+
+    get_transactions()
     {:noreply, state}
   end
 
-  def create_block(trans_list, state) do
-    merkle_root = create_merkle_tree(trans_list)
-    last_block = List.last(Bitcoind.get_blockchain(:bitcoind)) 
+  def create_block(transactions, _state) do
+    transaction_hashes = transactions |> Enum.map(fn transaction -> transaction.hash end)
+    merkle_root = create_merkle_tree(transaction_hashes)
+    last_block = List.last(Bitcoind.get_blockchain(:bitcoind))
     prev_hash = last_block.hash
     block_height = last_block.block_height + 1
-    block = Block.create(merkle_root, prev_hash, block_height, state.name)
-    case Bitcoind.add_block(:bitcoind, block) do
-      true -> block
-      false -> nil
-    end 
+    block = Block.create(merkle_root, prev_hash, block_height, transactions)
+
+    Bitcoind.add_block(:bitcoind, block)
+    Participant.receive_block(:participant_a, block)
+    Participant.receive_block(:participant_b, block)
+
   end
 
-  def create_merkle_tree(trans_list) do
-    trans_list = 
-    trans_list
-    |> Enum.map(fn tx_id -> hash(tx_id) end) 
-    |> Enum.chunk_every(2) 
-    |> Enum.map(fn pair -> List.first(pair) <> List.last(pair) end)
+  def create_merkle_tree(transaction_hashes) do
+    transaction_hashes =
+      transaction_hashes
+      |> Enum.map(fn transaction_hash -> hash(transaction_hash) end)
+      |> Enum.chunk_every(2)
+      |> Enum.map(fn pair -> List.first(pair) <> List.last(pair) end)
 
-    if(Enum.count(trans_list) == 1) do
-      hash(List.first(trans_list))
+    if(Enum.count(transaction_hashes) == 1) do
+      hash(List.first(transaction_hashes))
     else
-      create_merkle_tree(trans_list)
+      create_merkle_tree(transaction_hashes)
     end
   end
 
