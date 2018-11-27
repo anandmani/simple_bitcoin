@@ -1,7 +1,72 @@
 defmodule Wallet do
   @moduledoc """
-    Implementing the network wallet responsible for monitoring the blockchain to look for incoming bitcoin
+    Implementing:
+      - address generation
+       - network wallet responsible for monitoring the blockchain to look for incoming bitcoin
   """
+
+  def generate_key_pair, do: :crypto.generate_key(:ecdh, :secp256k1)
+
+  def calc_address(private_key, version_bytes) do
+    private_key
+    |> get_public_key()
+    |> hash(:sha256)
+    |> hash(:ripemd160)
+    |> prepend_version(version_bytes)
+    |> encode()
+  end
+
+  def get_public_key(private_key) do
+    private_key
+    |> String.valid?()
+    |> decode_key(private_key)
+    |> generate_public_key()
+  end
+
+  defp decode_key(isValid, private_key) do
+    case isValid do
+      true -> Base.decode16!(private_key)
+      false -> private_key
+    end
+  end
+
+  defp generate_public_key(private_key) do
+    with {public_key, _private_key} <- :crypto.generate_key(:ecdh, :secp256k1, private_key),
+         do: public_key
+  end
+
+  defp hash(key, hashing_algo), do: :crypto.hash(hashing_algo, key)
+
+  def prepend_version(public_hash, version_bytes) do
+    version_bytes
+    |> Kernel.<>(public_hash)
+  end
+
+  def encode(version_hash) do
+    version_hash
+    |> hash(:sha256)
+    |> hash(:sha256)
+    |> checksum()
+    |> append(version_hash)
+    |> Base58Enc.encode()
+  end
+
+  defp checksum(<<checksum::bytes-size(4), _::bits>>), do: checksum
+
+  defp append(checksum, hash), do: hash <> checksum
+
+  def get_keys() do
+    {public_key, private_key} = generate_key_pair()
+    signature = Signature.generate(private_key, "")
+    address = calc_address(private_key, <<0x00>>)
+    %{
+      :private_key => private_key,
+      :public_key => public_key,
+      :public_key_hash => address,
+      :signature => signature
+    }
+  end
+
   @doc """
     Checks if tx_out was made to calling node.
     Returns bool
@@ -62,6 +127,7 @@ defmodule Wallet do
       end
     end)
   end
+
 end
 
 # Sample Input:
@@ -92,3 +158,16 @@ end
 #   ]
 # }
 
+
+#TODO:
+  # def handle_call({method, methodArgs}, _from, state) do
+  #   case method do
+  #     :get_address ->
+  #       {signature, public_key, message} = methodArgs
+  #       bool = Signature.verify(public_key, signature, message)
+  #       case bool do
+  #         true -> {:reply, state.address, state}
+  #         false -> {:reply, nil, []}
+  #       end
+  #   end
+  # end

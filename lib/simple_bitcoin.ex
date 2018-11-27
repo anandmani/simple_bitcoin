@@ -1,34 +1,25 @@
 defmodule SimpleBitcoin do
+  # TODO:
+  # username = Enum.map(1..numParticipants, fn x -> IO.gets("User #{x}: ") |> String.trim end)
+  # Enum.map(username, fn username -> Wallet.start_link(username) end)
+
   def start do
+    participant_zero_keys = Wallet.get_keys()
+    participant_one_keys = Wallet.get_keys()
 
-    #TODO: Hardcoding here. Generate these after merging code
-    #TODO: need to hardcode both the addresses? Easier to send money then
-
-    participant_zero_keys =  %{
-      :private_key => "dummy",
-      :public_key => "dummy",
-      :public_key_hash => "1APjUvMJUYdYthWBEAtpJgQyeWMBMqcySu"
-    }
-
-    participant_one_keys =  %{
-      :private_key => "dummy",
-      :public_key => "dummy",
-      :public_key_hash => "qwertyuiop"
-    }
-
-    _dummy_block = %{
-      :txns => [
-        %{
-          :hash => "dummy",
-          :tx_out => [
-            %{
-              :value => 1,
-              :pk_script => "OP_HASH160 1APjUvMJUYdYthWBEAtpJgQyeWMBMqcySu OP_EQUALVERIFY"
-            }
-          ]
-        }
-      ]
-    }
+    # _dummy_block = %{
+    #   :txns => [
+    #     %{
+    #       :hash => "dummy",
+    #       :tx_out => [
+    #         %{
+    #           :value => 1,
+    #           :pk_script => "OP_HASH160 1APjUvMJUYdYthWBEAtpJgQyeWMBMqcySu OP_EQUALVERIFY"
+    #         }
+    #       ]
+    #     }
+    #   ]
+    # }
 
     {:ok, dns_seed_pid} = DnsSeed.start_link([])
     Process.register(dns_seed_pid, :dns_seed)
@@ -37,7 +28,8 @@ defmodule SimpleBitcoin do
     Process.register(bitcoind_pid, :bitcoind)
     Bitcoind.generate_genesis_block(:bitcoind, participant_zero_keys.public_key_hash)
 
-    #Start Miner
+    # Start Miner
+    Enum.map(1..1, fn x -> Miner.start_link("miner" <> Integer.to_string(x)) end)
 
     {:ok, pid} = Participant.start_link([])
     Process.register(pid, :participant_a)
@@ -45,8 +37,7 @@ defmodule SimpleBitcoin do
     Participant.init_blockchain(:participant_a)
     Participant.set_keys(:participant_a, participant_zero_keys)
     Participant.update_balance(:participant_a)
-    # Participant.receive_block(:participant_a, dummy_block)
-    Participant.inspect(:participant_a)
+    # Participant.inspect(:participant_a)
 
     {:ok, pid} = Participant.start_link([])
     Process.register(pid, :participant_b)
@@ -54,11 +45,9 @@ defmodule SimpleBitcoin do
     Participant.init_blockchain(:participant_b)
     Participant.set_keys(:participant_b, participant_one_keys)
     Participant.update_balance(:participant_b)
-    # Participant.receive_block(:participant_a, dummy_block)
-    Participant.inspect(:participant_b)
+    # Participant.inspect(:participant_b)
 
-    Participant.send_satoshi(:participant_a, 10, "qwertyuiop")
-
+    Participant.send_satoshi(:participant_a, 10, participant_one_keys.public_key_hash)
   end
 end
 

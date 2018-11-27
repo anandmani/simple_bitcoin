@@ -90,7 +90,7 @@ defmodule Transaction do
         :index => output_index
       },
       # String containing public_key and signature. Ignore signature?
-      :signature_script => public_key
+      :signature_script => Base.encode16(public_key)  #Remember to decode16 when verifying signature in pubkey script
     }
   end
 
