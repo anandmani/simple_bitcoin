@@ -3,7 +3,7 @@ defmodule SimpleBitcoin do
   # username = Enum.map(1..numParticipants, fn x -> IO.gets("User #{x}: ") |> String.trim end)
   # Enum.map(username, fn username -> Wallet.start_link(username) end)
 
-  def start do
+  def start(value \\ 10) do
     participant_zero_keys = Wallet.get_keys()
     participant_one_keys = Wallet.get_keys()
 
@@ -47,7 +47,8 @@ defmodule SimpleBitcoin do
     Participant.update_balance(:participant_b)
     # Participant.inspect(:participant_b)
 
-    Participant.send_satoshi(:participant_a, 10, participant_one_keys.public_key_hash)
+    IO.puts("Sending 10 satoshis from Node a to Node b")
+    Participant.send_satoshi(:participant_a, value, participant_one_keys.public_key_hash)
   end
 end
 

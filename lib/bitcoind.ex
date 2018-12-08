@@ -47,12 +47,12 @@ defmodule Bitcoind do
     }
   end
 
-  def verify_block(state, blockchain) do
+  def verify_block(blockchain) do
     if(Enum.count(blockchain) == 1) do
       true
     else
       case hd(blockchain).prev_hash == List.first(tl(blockchain)).hash do
-        true -> verify_block(state, tl(blockchain))
+        true -> verify_block(tl(blockchain))
         false -> false
       end
     end
@@ -71,7 +71,7 @@ defmodule Bitcoind do
         block = methodArgs
         blockchain = state.blockchain ++ [block]
 
-        case verify_block(state, Enum.reverse(blockchain)) do
+        case verify_block(Enum.reverse(blockchain)) do
           true -> {:reply, true, Map.update!(state, :blockchain, fn _ -> blockchain end)}
           false -> {:reply, false, state}
         end

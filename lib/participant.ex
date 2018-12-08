@@ -29,11 +29,6 @@ defmodule Participant do
     GenServer.cast(server, {:set_keys, {keys_map}})
   end
 
-  @doc "Generate Private, Public keys from wallet"
-  def get_keys(server) do
-    GenServer.cast(server, {:get_keys, {}})
-  end
-
   def inspect(server) do
     GenServer.cast(server, {:inspect, {}})
   end
@@ -71,21 +66,6 @@ defmodule Participant do
        :public_key_hash => nil
        # TODO:  :signature => nil
      }}
-  end
-
-  def handle_get_keys(state) do
-    cond do
-      state.private_key != nil ->
-        %{}
-
-      true ->
-        # TODO: Hardcoding now. Call wallet to generate keys
-        %{
-          :private_key => "dummy",
-          :public_key => "dummy",
-          :public_key_hash => "dummy"
-        }
-    end
   end
 
   @doc """
@@ -129,8 +109,7 @@ defmodule Participant do
     }
 
     tx = Transaction.add_hash(tx)
-    # IO.puts("Transaction created")
-    # IO.inspect(tx)
+    IO.puts("Transaction created")
     tx
   end
 
@@ -148,7 +127,9 @@ defmodule Participant do
         change = reduced_sum - value
         transaction_outputs = cond do
           change == 0 ->
-            Transaction.generate_a_tx_out(value, public_key_hash)
+            [
+              Transaction.generate_a_tx_out(value, public_key_hash)
+            ]
           true ->
             [
               Transaction.generate_a_tx_out(value, public_key_hash),
@@ -186,13 +167,8 @@ defmodule Participant do
         # TODO: send pubkeyhash
         new_utxos = Wallet.check_block(Enum.at(state.blockchain, 0), state.public_key_hash)
         new_state = update_in(state[:utxos], fn utxos -> utxos ++ new_utxos end)
-        IO.puts "updated balance"; IO.inspect(new_state)
+        IO.inspect(new_state)
         {:noreply, new_state}
-
-      :get_keys ->
-        # TODO: Merge code and code this
-        keys_map = handle_get_keys(state)
-        {:noreply, Map.merge(state, keys_map)}
 
       :set_keys ->
         {keys_map} = methodArgs
