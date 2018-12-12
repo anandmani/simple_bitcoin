@@ -20,13 +20,17 @@ defmodule Participant do
   end
 
   @doc "Initialize local blockchain with genesis block"
-  def init_blockchain(server) do
-    GenServer.cast(server, {:init_blockchain, {}})
+  def get_blockchain(server) do
+    GenServer.cast(server, {:get_blockchain, {}})
   end
 
   @doc "Set hardcoded keys. Used in the case of genesis block, to set keys for first participant"
-  def set_keys(server, keys_map) do
-    GenServer.cast(server, {:set_keys, {keys_map}})
+  def set_keys(server) do
+    GenServer.cast(server, {:set_keys, {}})
+  end
+
+  def   get_public_key(server) do
+    GenServer.call(server, {:get_public_key})
   end
 
   def inspect(server) do
@@ -38,15 +42,19 @@ defmodule Participant do
   end
 
   @doc "Unsolicited Block Push"
-  def receive_block(server, block) do
+  def receive_block(server, blockchain) do
     # IO.puts("received block"); IO.inspect(block);
-    GenServer.cast(server, {:receive_block, {block}})
+    GenServer.cast(server, {:receive_block, {blockchain}})
     GenServer.cast(server, {:update_balance, {}})
   end
 
   @doc "Send satoshis to destination node"
   def send_satoshi(server, value, public_key_hash) do
     GenServer.cast(server, {:send_satoshi, {value, public_key_hash}})
+  end
+
+  def send_satoshi_init(server) do
+    GenServer.cast(server, {:send_satoshi_init, {}})
   end
 
   ## Server Callbacks
@@ -109,16 +117,15 @@ defmodule Participant do
     }
 
     tx = Transaction.add_hash(tx)
-    IO.puts("Transaction created")
+    # IO.puts("Transaction created")
     tx
   end
 
   def handle_send_satoshi(state, value, public_key_hash) do
     {reduced_sum, reduced_index} = reduce_utxos(state[:utxos], value)
-
     cond do
       reduced_sum < value ->
-        IO.puts("Insufficient balance")
+        # IO.puts("Insufficient balance")
         state
 
       true ->
@@ -155,34 +162,68 @@ defmodule Participant do
         DnsSeed.register_participant(:dns_seed, self())
         {:noreply, state}
 
-      :init_blockchain ->
-        genesis_block = Bitcoind.get_genesis_block(:bitcoind)
-        {:noreply, Map.merge(state, %{:blockchain => [genesis_block]})}
+      :get_blockchain ->
+        blockchain = Bitcoind.get_blockchain(:bitcoind)
+        {:noreply, Map.merge(state, %{:blockchain => blockchain})}
 
       :inspect ->
-        IO.inspect(state.utxos)
+        # IO.inspect(state.utxos)
         {:noreply, state}
 
       :update_balance ->
         # TODO: send pubkeyhash
-        new_utxos = Wallet.check_block(Enum.at(state.blockchain, 0), state.public_key_hash)
+        new_utxos = Wallet.check_block(List.last(state.blockchain), state.public_key_hash)
         new_state = update_in(state[:utxos], fn utxos -> utxos ++ new_utxos end)
-        IO.inspect(new_state)
+        # IO.inspect(new_state)
         {:noreply, new_state}
 
       :set_keys ->
-        {keys_map} = methodArgs
-        {:noreply, Map.merge(state, keys_map)}
+        participant_key_map = Wallet.get_keys()
+        {:noreply, Map.merge(state, participant_key_map)}
 
       :receive_block ->
-        {block} = methodArgs
-        new_state = update_in(state[:blockchain], fn blockchain -> [block] ++ blockchain end)
-        {:noreply, new_state}
+        {blockchain} = methodArgs
+        {:noreply, Map.merge(state, %{:blockchain => blockchain})}
 
       :send_satoshi ->
         {value, public_key_hash} = methodArgs
         new_state = handle_send_satoshi(state, value, public_key_hash)
         {:noreply, new_state}
+
+      :send_satoshi_init ->
+        send_satoshi()
+        {:noreply, state}
     end
   end
+
+  def handle_call({method}, _from, state) do
+    case method do
+      :get_public_key ->
+        {:reply, state.public_key_hash, state}
+    end
+  end
+
+  def send_satoshi() do
+    Process.send_after(self(), :send_satoshi, 2 * 1000)
+  end
+
+  def handle_info(:send_satoshi, state) do
+    # sender = elem(List.first(Process.info(self())), 1)
+    # IO.inspect(sender)
+    # IO.inspect(state.utxos)
+    if (!Enum.empty?(state.utxos)) do
+      value = :rand.uniform(50)
+      balance = Enum.reduce(state.utxos, 0, fn ({k, _v}, acc) -> k + acc end)
+      receiver = String.to_atom("participant_" <>  Integer.to_string(:rand.uniform(100)))
+      sender = elem(List.first(Process.info(self())), 1)
+      if(sender != receiver) do
+        IO.puts("balance(#{sender})  = #{balance}")
+        IO.puts("Sending #{value} satoshis from #{sender} to #{receiver}")
+        send_satoshi(self(), value, get_public_key(receiver))
+      end
+    end
+    send_satoshi()
+    {:noreply, state}
+  end
+
 end

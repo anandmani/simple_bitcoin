@@ -3,9 +3,7 @@ defmodule SimpleBitcoin do
   # username = Enum.map(1..numParticipants, fn x -> IO.gets("User #{x}: ") |> String.trim end)
   # Enum.map(username, fn username -> Wallet.start_link(username) end)
 
-  def start(value \\ 10) do
-    participant_zero_keys = Wallet.get_keys()
-    participant_one_keys = Wallet.get_keys()
+  def start() do
 
     # _dummy_block = %{
     #   :txns => [
@@ -26,29 +24,37 @@ defmodule SimpleBitcoin do
 
     {:ok, bitcoind_pid} = Bitcoind.start_link([])
     Process.register(bitcoind_pid, :bitcoind)
-    Bitcoind.generate_genesis_block(:bitcoind, participant_zero_keys.public_key_hash)
+
+    # Start participants
+    start_participant = fn x ->
+      name = String.to_atom("participant_"<>Integer.to_string(x))
+      {:ok, pid} = Participant.start_link([])
+      Process.register(pid, name)
+      Participant.register(name)
+      Participant.set_keys(name)
+      if (name == :participant_1) do
+        IO.puts("Creating genesis")
+        Bitcoind.generate_genesis_block(:bitcoind, Participant.get_public_key(name))
+      end
+      Participant.get_blockchain(name)
+      Participant.update_balance(name)
+      Participant.send_satoshi_init(name)
+    end
+    Enum.map(1..100, start_participant)
 
     # Start Miner
-    Enum.map(1..1, fn x -> Miner.start_link("miner" <> Integer.to_string(x)) end)
+    start_miner = fn x ->
+      name = String.to_atom("miner" <> Integer.to_string(x))
+      {:ok, pid} = Miner.start_link()
+      Process.register(pid, name)
+      Miner.register(name)
+      Miner.transaction_poll(name)
+      Miner.get_blockchain(name)
+      # Miner.update_balance(name)
+      Miner.set_keys(name)
+    end
+    Enum.map(1..1, start_miner)
 
-    {:ok, pid} = Participant.start_link([])
-    Process.register(pid, :participant_a)
-    Participant.register(:participant_a)
-    Participant.init_blockchain(:participant_a)
-    Participant.set_keys(:participant_a, participant_zero_keys)
-    Participant.update_balance(:participant_a)
-    # Participant.inspect(:participant_a)
-
-    {:ok, pid} = Participant.start_link([])
-    Process.register(pid, :participant_b)
-    Participant.register(:participant_b)
-    Participant.init_blockchain(:participant_b)
-    Participant.set_keys(:participant_b, participant_one_keys)
-    Participant.update_balance(:participant_b)
-    # Participant.inspect(:participant_b)
-
-    IO.puts("Sending 10 satoshis from Node a to Node b")
-    Participant.send_satoshi(:participant_a, value, participant_one_keys.public_key_hash)
   end
 end
 

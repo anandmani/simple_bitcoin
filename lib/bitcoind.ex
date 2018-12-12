@@ -1,20 +1,23 @@
 defmodule Bitcoind do
   use GenServer
 
-  def get_transactions(server) do
-    GenServer.call(server, {:get_transactions, nil})
+  def start_link(opts) do
+    GenServer.start_link(__MODULE__, :ok, opts)
   end
 
+  def get_transactions(server) do
+    GenServer.call(server, {:get_transactions})
+  end
+
+  @doc """
+    Returns initial blockchain to calling node
+  """
   def get_blockchain(server) do
-    GenServer.call(server, {:get_blockchain, nil})
+    GenServer.call(server, {:get_blockchain})
   end
 
   def add_block(server, block) do
-    GenServer.call(server, {:add_block, block})
-  end
-
-  def start_link(opts) do
-    GenServer.start_link(__MODULE__, :ok, opts)
+    GenServer.cast(server, {:add_block, block})
   end
 
   @doc """
@@ -22,13 +25,6 @@ defmodule Bitcoind do
   """
   def generate_genesis_block(server, pubkeyhash) do
     GenServer.cast(server, {:generate_genesis_block, {pubkeyhash}})
-  end
-
-  @doc """
-    Return genesis block to calling node
-  """
-  def get_genesis_block(server) do
-    GenServer.call(server, {:get_genesis_block, {}})
   end
 
   def receive_transaction(server, transaction) do
@@ -58,7 +54,7 @@ defmodule Bitcoind do
     end
   end
 
-  def handle_call({method, methodArgs}, _from, state) do
+  def handle_call({method}, _from, state) do
     case method do
       :get_transactions ->
         transactions = state.transactions
@@ -66,18 +62,6 @@ defmodule Bitcoind do
 
       :get_blockchain ->
         {:reply, state.blockchain, state}
-
-      :add_block ->
-        block = methodArgs
-        blockchain = state.blockchain ++ [block]
-
-        case verify_block(Enum.reverse(blockchain)) do
-          true -> {:reply, true, Map.update!(state, :blockchain, fn _ -> blockchain end)}
-          false -> {:reply, false, state}
-        end
-
-      :get_genesis_block ->
-        {:reply, state.genesis_block, state}
     end
   end
 
@@ -98,6 +82,8 @@ defmodule Bitcoind do
           }
         ]
         genesis_block = Block.create("", 0, 0, txns)
+        IO.puts("genesis-block")
+        IO.inspect(genesis_block)
         {
           :noreply,
           Map.merge(state, %{
@@ -113,6 +99,20 @@ defmodule Bitcoind do
           update_in(state[:transactions], fn transactions -> transactions ++ [transaction] end)
 
         {:noreply, new_state}
+
+      :add_block ->
+        block = methodArgs
+        blockchain = state.blockchain ++ [block]
+        broadcast_blockchain = fn x ->
+          name = String.to_atom("participant_"<>Integer.to_string(x))
+          Participant.receive_block(name, blockchain)
+        end
+        Enum.map(1..100, broadcast_blockchain)
+        Miner.receive_block(:miner1, blockchain)
+        case verify_block(Enum.reverse(blockchain)) do
+          true -> {:noreply, Map.update!(state, :blockchain, fn _ -> blockchain end)}
+          false -> {:noreply, state}
+        end
     end
   end
 end
