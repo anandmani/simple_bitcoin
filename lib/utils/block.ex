@@ -15,7 +15,7 @@ defmodule Block do
       :txns => txns
     }
 
-    if(data == "Genesis") do
+    if(data == "") do
       {hash, nonce} = {hash(data, prev_hash, timestamp, 0), 0}
       Map.merge(block, %{:hash => hash, :nonce => nonce})
     else
